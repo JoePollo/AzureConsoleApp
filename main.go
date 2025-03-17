@@ -3,13 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-
-	"os"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
+	"log"
+	"os"
 )
 
 func ErrorHandler(object string, err error) error {
@@ -17,7 +14,6 @@ func ErrorHandler(object string, err error) error {
 }
 
 func GetCredentials() (*azidentity.DefaultAzureCredential, error) {
-
 	creds, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, ErrorHandler("NewDefaultAzureCredential", err)
@@ -38,16 +34,33 @@ func SendMessage(message string, client *azservicebus.Client, queueName string) 
 	if err != nil {
 		return ErrorHandler("client.NewSender", err)
 	}
-
 	defer sender.Close(context.TODO())
-
 	serviceBusMessage := &azservicebus.Message{
 		Body: []byte(message),
 	}
-
 	err = sender.SendMessage(context.TODO(), serviceBusMessage, nil)
 	if err != nil {
 		return ErrorHandler("sender.SendMessage", err)
+	}
+	return nil
+}
+
+func GetMessage(client *azservicebus.Client, queueName string) error {
+	receiver, err := client.NewReceiverForQueue(queueName, nil)
+	if err != nil {
+		return ErrorHandler("client.NewReceiverForQueue", err)
+	}
+	defer receiver.Close(context.TODO())
+	messages, err := receiver.ReceiveMessages(context.TODO(), 99, nil)
+	if err != nil {
+		return ErrorHandler("receiver.ReceiveMessages", err)
+	}
+	for _, message := range messages {
+		fmt.Printf("%s\n", string(message.Body))
+		err = receiver.CompleteMessage(context.TODO(), message, nil)
+		if err != nil {
+			return ErrorHandler("client.NewReceiverForQueue", err)
+		}
 	}
 	return nil
 }
@@ -68,5 +81,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	err = GetMessage(serviceBusClient, QueueName)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
